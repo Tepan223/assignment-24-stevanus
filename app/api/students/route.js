@@ -1,142 +1,84 @@
 import axios from "axios";
-import { NextResponse } from "next/server";
-
 
 const API_URL = "https://course.summitglobal.id/students";
 
-/**
- * GET ALL STUDENTS
- */
 export async function GET() {
   try {
     const response = await axios.get(API_URL);
-
-    return new Response(JSON.stringify({ data: response.data }), {
+    return new Response(JSON.stringify(response.data), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
-
   } catch (error) {
-    console.error("GET proxy error:", error?.response?.data || error.message);
+    console.error("GET proxy error:", error.response?.data || error.message);
     return new Response(
       JSON.stringify({
         message: "Failed to fetch students",
-        error: error?.response?.data || error.message,
+        error: error.response?.data || error.message,
       }),
-      { status: error?.response?.status || 500 }
+      { status: error.response?.status || 500 }
     );
   }
 }
 
-/**
- * ADD STUDENT
- */
 export async function POST(request) {
   try {
     const body = await request.json();
+
+    // Debug log supaya tahu body yang dikirim
+    console.log("POST body:", body);
 
     const response = await axios.post(API_URL, body, {
       headers: { "Content-Type": "application/json" },
     });
 
     return new Response(JSON.stringify(response.data), {
-      status: response.status,
+      status: 200,
+      headers: { "Content-Type": "application/json" },
     });
-
   } catch (error) {
-    console.error("POST proxy error:", error?.response?.data || error.message);
+    console.error("POST proxy error:", error.response?.data || error.message);
     return new Response(
       JSON.stringify({
         message: "Failed to add student",
-        error: error?.response?.data || error.message,
+        error: error.response?.data || error.message,
       }),
-      { status: error?.response?.status || 500 }
+      { status: error.response?.status || 500 }
     );
   }
 }
 
-/**
- * UPDATE STUDENT
- */
 export async function PUT(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-
-    if (!id) {
-      return new Response(JSON.stringify({ error: "Missing ID" }), {
-        status: 400,
-      });
-    }
-
+    const id = searchParams.get("id") || "";
     const body = await request.json();
 
-    const response = await axios.put(API_URL, body, {
+    const response = await fetch(
+      `https://course.summitglobal.id/students?id=${id}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to update student");
+    }
+
+    const data = await response.json();
+    return new Response(JSON.stringify(data), {
+      status: 200,
       headers: { "Content-Type": "application/json" },
-      params: { id },
     });
-
-    return new Response(JSON.stringify(response.data), {
-      status: response.status,
-    });
-
   } catch (error) {
-    console.error("PUT error:", error?.response?.data || error.message);
+    console.error("API Error:", error);
     return new Response(
-      JSON.stringify({
-        message: "Failed to update student",
-        error: error?.response?.data || error.message,
-      }),
-      { status: error?.response?.status || 500 }
-    );
-  }
-}
-
-/**
- * DELETE STUDENT
- */
-export async function DELETE(request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, message: "Missing student ID" },
-        { status: 400 }
-      );
-    }
-
-    const endpoint = `${API_URL}/${id}`;
-
-    // Tetap coba delete API eksternal
-    try {
-      await axios.delete(endpoint);
-    } catch (error) {
-      console.error("REAL DELETE FAILED (but spoofing 200):", error.message);
-      // Tapi tetap return 200 → spoofing
-    }
-
-    // Spoofing success
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Student deleted successfully (spoofed)",
-        id,
-      },
-      { status: 200 }
-    );
-
-  } catch (error) {
-    console.error("DELETE general error:", error.message);
-
-    // Tetap 200 karena spoofing
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Student deleted (spoofed, fallback)",
-      },
-      { status: 200 }
+      JSON.stringify({ error: "Failed to update student" }),
+      { status: 500 }
     );
   }
 }

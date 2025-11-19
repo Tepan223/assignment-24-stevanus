@@ -1,7 +1,6 @@
-// pages/students/quiz.js
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Table,
   Button,
@@ -13,61 +12,31 @@ import {
   Space,
   Select,
   Typography,
-  Popconfirm,
-  Tag,
-  Row,
-  Col,
-  Spin,
 } from "antd";
-import {
-  PlusOutlined,
-  ReloadOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  SearchOutlined,
-} from "@ant-design/icons";
+import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import axios from "axios";
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 export default function StudentsPage() {
   const [students, setStudents] = useState([]);
-  const [rawStudents, setRawStudents] = useState([]); // unfiltered master
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentStudent, setCurrentStudent] = useState(null);
   const [form] = Form.useForm();
-
-  // search & filter
-  const [searchTerm, setSearchTerm] = useState("");
-  const [classFilter, setClassFilter] = useState(null);
-
-  // pagination
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 8,
-  });
 
   const API_URL = "/api/students";
 
-  // Fetch students
-  const fetchStudents = async (showLoading = true) => {
+  const fetchStudents = async () => {
     try {
-      if (showLoading) setLoading(true);
-
+      setLoading(true);
       const res = await axios.get(API_URL);
-      const data = res.data?.data ?? res.data ?? [];
-      const arr = Array.isArray(data) ? data : data?.body?.data ?? [];
-      const filteredArr = arr.filter((s) => s.status!== "deleted");
-
-      setRawStudents(filteredArr);
-      setStudents(filteredArr);
+      const data = res.data?.body?.data || [];
+      setStudents(data);
     } catch (error) {
       console.error(error);
       message.error("Failed to fetch students");
     } finally {
-      if (showLoading) setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -75,157 +44,57 @@ export default function StudentsPage() {
     fetchStudents();
   }, []);
 
-  // Search & Filter
-  useEffect(() => {
-    const term = String(searchTerm).trim().toLowerCase();
-    let filtered = rawStudents;
-
-    if (term) {
-      filtered = filtered.filter((s) =>
-        String(s.name).toLowerCase().includes(term) ||
-        String(s.major).toLowerCase().includes(term)
-      );
-    }
-
-    if (classFilter) {
-      filtered = filtered.filter((s) => s.class_name === classFilter);
-    }
-
-    setPagination((p) => ({ ...p, current: 1 }));
-    setStudents(filtered);
-  }, [searchTerm, classFilter, rawStudents]);
-
-  // Add or Update student
-  const handleSubmit = async (values) => {
+  const handleAddStudent = async (values) => {
     try {
-      setLoading(true);
-
-      if (isEditing && currentStudent) {
-        await axios.put(`${API_URL}?id=${currentStudent.id}`, values);
-        message.success("Student updated successfully!");
-
-        // Optimistic update
-        setRawStudents((prev) =>
-          prev.map((s) =>
-            s.id === currentStudent.id ? { ...s, ...values } : s
-          )
-        );
-      } else {
-        await axios.post(API_URL, values);
-        message.success("Student added successfully!");
-      }
-
+      await axios.post(API_URL, values);
+      message.success("Student added successfully!");
       setIsModalOpen(false);
       form.resetFields();
-      setIsEditing(false);
-      setCurrentStudent(null);
-
-      await fetchStudents(false);
+      fetchStudents();
     } catch (error) {
       console.error(error);
-      message.error("Failed to save student");
-    } finally {
-      setLoading(false);
+      message.error("Failed to add student");
     }
   };
 
-  // Delete student (FIXED)
-  const handleDelete = async (id) => {
-    try {
-      setLoading(true);
-
-      await axios.delete(`${API_URL}?id=${id}`);
-
-      message.success("Student deleted successfully!");
-
-      // Optimistic update
-      setRawStudents((prev) => prev.filter((s) => s.id !== id));
-      setStudents((prev) => prev.filter((s) => s.id !== id));
-    } catch (error) {
-      console.error(error);
-      message.error("Failed to delete student");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Open edit modal
-  const openEditModal = (student) => {
-    setIsEditing(true);
-    setCurrentStudent(student);
-
-    form.setFieldsValue({
-      name: student.name,
-      nis: student.nis,
-      class_name: student.class_name,
-      major: student.major,
-    });
-
-    setIsModalOpen(true);
-  };
-
-  // Table columns
-  const columns = useMemo(
-    () => [
-      {
-        title: "No",
-        key: "index",
-        align: "center",
-        width: 70,
-        render: (_, __, index) =>
-          (pagination.current - 1) * pagination.pageSize + index + 1,
-      },
-      {
-        title: "Name",
-        dataIndex: "name",
-        key: "name",
-        width: 240,
-        sorter: (a, b) => a.name.localeCompare(b.name),
-      },
-      {
-        title: "NIS",
-        dataIndex: "nis",
-        key: "nis",
-        align: "center",
-        width: 120,
-      },
-      {
-        title: "Class",
-        dataIndex: "class_name",
-        key: "class_name",
-        align: "center",
-        width: 140,
-        render: (cls) => <Tag color="blue">{cls}</Tag>,
-      },
-      {
-        title: "Major",
-        dataIndex: "major",
-        key: "major",
-      },
-      {
-        title: "Actions",
-        key: "actions",
-        align: "center",
-        width: 160,
-        render: (_, record) => (
-          <Space>
-            <Button size="small" icon={<EditOutlined />} onClick={() => openEditModal(record)}>
-              Edit
-            </Button>
-            <Popconfirm
-              title="Delete student?"
-              okText="Yes"
-              cancelText="No"
-              onConfirm={() => handleDelete(record.id)}
-            >
-              <Button size="small" danger icon={<DeleteOutlined />} />
-            </Popconfirm>
-          </Space>
-        ),
-      },
-    ],
-    [pagination]
-  );
+  const columns = [
+    {
+      title: "No",
+      key: "index",
+      render: (_, __, index) => index + 1,
+      align: "center",
+      width: 60,
+      fixed: "left",
+    },
+    {
+      title: "Name",
+      dataIndex: "name",
+      key: "name",
+      render: (text) => <b>{text}</b>,
+      width: 180,
+    },
+    {
+      title: "NIS",
+      dataIndex: "nis",
+      key: "nis",
+      align: "center",
+      width: 120,
+    },
+    {
+      title: "Class",
+      dataIndex: "class_name",
+      key: "class_name",
+      align: "center",
+      width: 120,
+    },
+    {
+      title: "Major",
+      dataIndex: "major",
+      key: "major",
+      width: 200,
+      ellipsis: true, 
+    },
+  ];
 
   const classOptions = [
     "X RPL 1",
@@ -240,28 +109,27 @@ export default function StudentsPage() {
     <div
       style={{
         padding: 24,
-        background: "#f0f2f5",
+        background: "#f5f6fa",
         minHeight: "100vh",
         display: "flex",
         justifyContent: "center",
       }}
     >
       <Card
-        title={<Title level={3}>Student Management</Title>}
+        title={<Title level={3} style={{ margin: 0 }}>Student List</Title>}
         extra={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={() => fetchStudents()} loading={loading}>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={fetchStudents}
+              loading={loading}
+            >
               Refresh
             </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              onClick={() => {
-                setIsEditing(false);
-                setCurrentStudent(null);
-                form.resetFields();
-                setIsModalOpen(true);
-              }}
+              onClick={() => setIsModalOpen(true)}
             >
               Add Student
             </Button>
@@ -269,96 +137,74 @@ export default function StudentsPage() {
         }
         style={{
           borderRadius: 16,
+          boxShadow: "0 4px 10px rgba(0,0,0,0.08)",
           width: "100%",
-          maxWidth: 1100,
-          background: "#fff",
+          maxWidth: 950,
         }}
       >
-        {/* Filters Section */}
-        <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
-          <Col xs={24} sm={12} md={10}>
-            <Input
-              placeholder="Search by name or major..."
-              prefix={<SearchOutlined />}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              allowClear
-            />
-          </Col>
-          <Col xs={12} sm={6} md={6}>
-            <Select
-              placeholder="Filter by class"
-              allowClear
-              style={{ width: "100%" }}
-              value={classFilter}
-              onChange={(v) => setClassFilter(v)}
-              options={classOptions.map((c) => ({ label: c, value: c }))}
-            />
-          </Col>
-          <Col xs={12} sm={6} md={4}>
-            <Button
-              onClick={() => {
-                setSearchTerm("");
-                setClassFilter(null);
-                fetchStudents();
-              }}
-            >
-              Reset
-            </Button>
-          </Col>
-          <Col xs={24} sm={24} md={4} style={{ textAlign: "right" }}>
-            <Text>Total: <b>{students.length}</b></Text>
-          </Col>
-        </Row>
-
-        {/* Table */}
-        <Spin spinning={loading}>
-          <Table
-            columns={columns}
-            dataSource={students}
-            rowKey="id"
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: students.length,
-              showSizeChanger: false,
-              onChange: (page, pageSize) => setPagination({ current: page, pageSize }),
-            }}
-          />
-        </Spin>
+        <Table
+          columns={columns}
+          dataSource={students}
+          rowKey="id"
+          loading={loading}
+          bordered
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: false,
+          }}
+          style={{ background: "#fff", borderRadius: 8 }}
+          scroll={{ x: 700 }}
+        />
       </Card>
 
-      {/* Modal */}
       <Modal
-        title={isEditing ? "Edit Student" : "Add Student"}
+        title="Add New Student"
         open={isModalOpen}
-        onCancel={() => {
-          setIsModalOpen(false);
-          form.resetFields();
-          setIsEditing(false);
-        }}
+        onCancel={() => setIsModalOpen(false)}
+        destroyOnHidden
         footer={null}
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="name" label="Full Name" rules={[{ required: true }]}>
-            <Input />
+        <Form form={form} layout="vertical" onFinish={handleAddStudent}>
+          <Form.Item
+            name="name"
+            label="Name"
+            rules={[{ required: true, message: "Please input name" }]}
+          >
+            <Input placeholder="Enter student name" />
           </Form.Item>
 
-          <Form.Item name="nis" label="NIS" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item
+            name="nis"
+            label="NIS"
+            rules={[{ required: true, message: "Please input NIS" }]}
+          >
+            <Input placeholder="Enter student NIS" />
           </Form.Item>
 
-          <Form.Item name="class_name" label="Class" rules={[{ required: true }]}>
-            <Select options={classOptions.map((c) => ({ label: c, value: c }))} />
+          <Form.Item
+            name="class_name"
+            label="Class"
+            rules={[{ required: true, message: "Please select class" }]}
+          >
+            <Select
+              placeholder="Select class"
+              options={classOptions.map((cls) => ({ label: cls, value: cls }))}
+            />
           </Form.Item>
 
-          <Form.Item name="major" label="Major" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item
+            name="major"
+            label="Major"
+            rules={[{ required: true, message: "Please input major" }]}
+          >
+            <Input placeholder="Enter major (e.g. Rekayasa Perangkat Lunak)" />
           </Form.Item>
 
-          <Button type="primary" htmlType="submit" block loading={loading}>
-            {isEditing ? "Update" : "Add"}
-          </Button>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block>
+              Submit
+            </Button>
+          </Form.Item>
         </Form>
       </Modal>
     </div>
